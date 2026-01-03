@@ -1,0 +1,79 @@
+def gitRepoUrl = 'https://github.com/hellokaton/java11-examples.git'
+def mavenGoals = 'clean package'
+def artifactsPath = 'target/*.jar'
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven3'
+        jdk 'JDK25'
+    }
+
+    stages {
+
+        stage('SCM code') {
+            steps {
+                script {
+                    def branch = 'main'
+                    def repoName = 'java11-examples'
+
+                    echo "Cloning repository: ${repoName}"
+                    echo "Branch: ${branch}"
+
+                    git url: gitRepoUrl, branch: branch
+
+                    def commitId = bat(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    def commitAuthor = bat(
+                        script: 'git log -1 --pretty=format:"%%an"',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Commit ID: ${commitId}"
+                    echo "Author: ${commitAuthor}"
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    def buildCommand = "mvn ${mavenGoals}"
+                    def buildStartTime = new Date()
+
+                    echo "Starting build..."
+                    echo "Command: ${buildCommand}"
+
+                    bat buildCommand
+
+                    def buildEndTime = new Date()
+                    def duration = (buildEndTime.time - buildStartTime.time) / 1000
+
+                    echo "Build completed in ${duration} seconds"
+                }
+            }
+        }
+
+        stage('Publish') {
+            steps {
+                script {
+                    echo "Publishing artifacts..."
+                    echo "Artifact pattern: ${artifactsPath}"
+
+                    archiveArtifacts artifacts: artifactsPath, allowEmptyArchive: false
+
+                    def artifacts = bat(
+                        script: 'dir /b target\\*.jar | find /c /v ""',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Published ${artifacts} artifact(s)"
+                }
+            }
+        }
+    }
+}
